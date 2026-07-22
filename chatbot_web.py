@@ -9,7 +9,7 @@ conversation_history = []
 def load_prompt():
     """Load the prompt from prompt.txt file."""
     try:
-        with open("prompt.txt", "r") sas file:
+        with open("prompt.txt", "r") as file:
             return file.read().strip()
     except FileNotFoundError:
         return "You are a helpful Q&A chatbot."
