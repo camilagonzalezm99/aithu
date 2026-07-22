@@ -1,7 +1,14 @@
 from flask import Flask, render_template, request, jsonify
 import os
+from anthropic import Anthropic
 
 app = Flask(__name__)
+
+# Initialize Anthropic client
+client = Anthropic()
+
+# Store conversation history for multi-turn conversations
+conversation_history = []
 
 def load_prompt():
     """Load the prompt from prompt.txt file"""
@@ -11,23 +18,39 @@ def load_prompt():
     except FileNotFoundError:
         return "you're a marketing assistant"
 
-def get_marketing_response(user_input):
-    """Generate a marketing-themed response"""
-    user_input_lower = user_input.lower()
+def get_claude_response(user_message):
+    """Get response from Claude API"""
+    try:
+        # Add user message to conversation history
+        conversation_history.append({
+            "role": "user",
+            "content": user_message
+        })
+        
+        # Get system prompt
+        system_prompt = load_prompt()
+        
+        # Call Claude API
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=conversation_history
+        )
+        
+        # Extract response text
+        assistant_message = response.content[0].text
+        
+        # Add assistant response to conversation history
+        conversation_history.append({
+            "role": "assistant",
+            "content": assistant_message
+        })
+        
+        return assistant_message
     
-    responses = {
-        "hi": "Hello! I'm here to help you with your marketing needs. What would you like assistance with?",
-        "help": "I can help you with marketing strategies, content creation, campaign planning, and customer engagement tips!",
-        "price": "I'd be happy to discuss pricing! What product or service are you looking to market?",
-        "campaign": "Great! Tell me more about your campaign goals, target audience, and budget.",
-        "content": "Content is key! I can help you create engaging copy for social media, emails, blogs, and more.",
-    }
-    
-    for keyword, response in responses.items():
-        if keyword in user_input_lower:
-            return response
-    
-    return f"That's interesting! As your marketing assistant, I can help you with: strategy, content, campaigns, SEO, social media, email marketing, and customer engagement. What interests you most?"
+    except Exception as e:
+        return f"Error communicating with Claude: {str(e)}"
 
 @app.route('/')
 def index():
@@ -42,8 +65,15 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Empty message'}), 400
     
-    bot_response = get_marketing_response(user_message)
+    bot_response = get_claude_response(user_message)
     return jsonify({'response': bot_response})
+
+@app.route('/clear', methods=['POST'])
+def clear_chat():
+    """Clear conversation history"""
+    global conversation_history
+    conversation_history = []
+    return jsonify({'status': 'cleared'})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
