@@ -1,3 +1,5 @@
+import random
+
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
@@ -10,9 +12,10 @@ def load_prompt():
     """Load the prompt from prompt.txt file."""
     try:
         with open("prompt.txt", "r") as file:
-            return file.read().strip()
+            prompt = file.read().strip()
+            return "" if prompt == "You are a marketing assistant" else prompt
     except FileNotFoundError:
-        return "You are a helpful Q&A chatbot."
+        return ""
 
 
 def load_knowledge_base():
@@ -33,6 +36,13 @@ def find_answer(user_message):
     message = user_message.lower()
     knowledge = load_knowledge_base()
 
+    if "display marketing strategies" in message:
+        try:
+            with open("marketing_strategies.txt", "r") as file:
+                return file.read().strip()
+        except FileNotFoundError:
+            return "Marketing strategies file not found."
+
     if "greet" in message or "hello" in message or "hi" in message:
         return "Hello! I can help answer questions about marketing strategies and customer guidance."
 
@@ -48,12 +58,23 @@ def find_answer(user_message):
     return "I can answer questions based on the available marketing strategy knowledge. Try asking about credit card recommendations, fees, promotions, or follow-up steps."
 
 
-def get_qna_response(user_message):
+def get_simulator_question():
+    """Return a question for simulator mode."""
+    questions = [
+        "What are your financial goals?",
+        "Do you prefer travel rewards, cashback, or low-interest benefits?",
+        "Are you interested in card features like annual fees, introductory offers, or eligibility requirements?",
+        "Would you like help comparing credit card options based on your spending habits?",
+    ]
+    return random.choice(questions)
+
+
+def get_qna_response(user_message, simulator_mode=False):
     """Build a local Q&A chatbot response without external APIs."""
     conversation_history.append({"role": "user", "content": user_message})
 
     system_prompt = load_prompt()
-    assistant_message = find_answer(user_message)
+    assistant_message = get_simulator_question() if simulator_mode else find_answer(user_message)
 
     if system_prompt:
         assistant_message = f"{system_prompt}\n\n{assistant_message}"
@@ -72,11 +93,12 @@ def index():
 def chat():
     data = request.json
     user_message = data.get('message', '')
+    simulator_mode = bool(data.get('simulator_mode', False))
 
     if not user_message:
         return jsonify({'error': 'Empty message'}), 400
 
-    bot_response = get_qna_response(user_message)
+    bot_response = get_qna_response(user_message, simulator_mode=simulator_mode)
     return jsonify({'response': bot_response})
 
 
